@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio  # noqa: F401  # used in process() for concurrent episode processing
 import logging
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from memv.memory._lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
+
+MAX_CONCURRENT_EPISODES = 10
 
 
 class Pipeline:
@@ -52,13 +55,15 @@ class Pipeline:
         # Segment into episodes
         episodes_messages = await self._segment_messages(unprocessed)
 
-        # Process episodes sequentially to ensure each sees prior extractions
-        total_extracted = 0
-        for messages in episodes_messages:
-            count = await self._process_episode(messages, user_id)
-            total_extracted += count
+        # Process episodes concurrently (dedup handles any overlap)
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_EPISODES)
 
-        return total_extracted
+        async def _guarded(msgs: list[Message]) -> int:
+            async with semaphore:
+                return await self._process_episode(msgs, user_id)
+
+        counts = await asyncio.gather(*[_guarded(msgs) for msgs in episodes_messages])
+        return sum(counts)
 
     async def process_messages(self, messages: list[Message], user_id: str) -> int:
         """
