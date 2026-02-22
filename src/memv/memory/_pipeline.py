@@ -55,9 +55,11 @@ class Pipeline:
         # Segment into episodes
         episodes_messages = await self._segment_messages(unprocessed)
 
-        # Process episodes concurrently. Trade-off: episodes see stale KB state
-        # (each queries the same initial knowledge), so predict-calibrate can't
-        # suppress intra-batch duplicates. Dedup catches overlap post-extraction.
+        # Process episodes with concurrent LLM/embedding calls. aiosqlite serializes
+        # DB writes through a single thread, so KB reads/writes are sequential — the
+        # actual parallelism is on API I/O (segmentation, extraction, embedding).
+        # Trade-off: episodes see stale KB state (predict-calibrate can't suppress
+        # intra-batch duplicates). Dedup catches overlap post-extraction.
         # This matches Nemori's approach — parallelism + dedup over sequential fidelity.
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_EPISODES)
 
