@@ -26,6 +26,7 @@ async def run(
     top_k: int = 10,
     model: str = "openai:gpt-4.1-mini",
     stages: list[str] | None = None,
+    resume: bool = True,
 ):
     stages = stages or ["add", "search", "evaluate"]
     embedding_client, llm_client = _make_clients(model=model)
@@ -44,6 +45,7 @@ async def run(
             num_questions=num_questions,
             max_concurrent=max_concurrent,
             timeout=timeout,
+            resume=resume,
             embedding_client=embedding_client,
             llm_client=llm_client,
         )
@@ -60,6 +62,7 @@ async def run(
             top_k=top_k,
             max_concurrent=max_concurrent * 2,  # search is lighter than add
             timeout=timeout,
+            resume=resume,
             embedding_client=embedding_client,
             llm_client=llm_client,
         )
@@ -71,6 +74,7 @@ async def run(
         await evaluate.run(
             run_name=run_name,
             llm_client=llm_client,
+            resume=resume,
         )
 
     total_elapsed = time.monotonic() - total_start
@@ -94,6 +98,7 @@ def main():
         help="PydanticAI model string (e.g. google-gla:gemini-2.5-flash, groq:llama-3.3-70b-versatile)",
     )
     parser.add_argument("--stages", default="add,search,evaluate", help="Comma-separated stages to run")
+    parser.add_argument("--no-resume", action="store_true", help="Start fresh, ignore prior checkpoints")
     args = parser.parse_args()
 
     asyncio.run(
@@ -107,6 +112,7 @@ def main():
             top_k=args.top_k,
             model=args.model,
             stages=args.stages.split(","),
+            resume=not args.no_resume,
         )
     )
 

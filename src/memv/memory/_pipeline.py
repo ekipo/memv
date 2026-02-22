@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio  # noqa: F401  # used in process() for concurrent episode processing
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -55,7 +55,10 @@ class Pipeline:
         # Segment into episodes
         episodes_messages = await self._segment_messages(unprocessed)
 
-        # Process episodes concurrently (dedup handles any overlap)
+        # Process episodes concurrently. Trade-off: episodes see stale KB state
+        # (each queries the same initial knowledge), so predict-calibrate can't
+        # suppress intra-batch duplicates. Dedup catches overlap post-extraction.
+        # This matches Nemori's approach — parallelism + dedup over sequential fidelity.
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_EPISODES)
 
         async def _guarded(msgs: list[Message]) -> int:

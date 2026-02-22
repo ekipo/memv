@@ -6,6 +6,8 @@ from memv.config import MemoryConfig
 
 CONFIGS: dict[str, MemoryConfig] = {
     "default": MemoryConfig(),
+    # Fast: skips predict-calibrate, dedup, and merging. For iteration speed only —
+    # results are NOT comparable to 'default' config.
     "fast": MemoryConfig(
         max_statements_for_prediction=0,
         enable_knowledge_dedup=False,

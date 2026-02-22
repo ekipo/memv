@@ -6,12 +6,11 @@ import argparse
 import asyncio
 import json
 import logging
-import time
-from pathlib import Path
+from datetime import datetime, timezone
+
+from ._checkpoint import RESULTS_DIR, append_jsonl, load_all_results, load_completed
 
 logger = logging.getLogger(__name__)
-
-RESULTS_DIR = Path(__file__).parent.parent / "results"
 
 # --- Type-specific judge prompts (adapted from Nemori/Zep LongMemEval evals) ---
 
@@ -100,18 +99,15 @@ async def evaluate_single(
     prompt = template.format(question=question, gold_answer=gold_answer, response=response)
     full_prompt = f"{SYSTEM_PROMPT}\n\n{prompt}"
 
-    try:
-        result = await llm_client.generate(full_prompt)
-        return result.strip().lower().startswith("yes")
-    except Exception as e:
-        logger.error("Evaluation failed: %s", e)
-        return False
+    result = await llm_client.generate(full_prompt)
+    return result.strip().lower().startswith("yes")
 
 
 async def run(
     run_name: str = "baseline",
     llm_client=None,
     max_concurrent: int = 10,
+    resume: bool = True,
 ):
     """Run evaluation on search results.
 
@@ -119,6 +115,7 @@ async def run(
         run_name: Name for this benchmark run (must match search stage).
         llm_client: LLMClient instance for LLM-judge.
         max_concurrent: Max concurrent LLM calls.
+        resume: Resume from checkpoint if prior results exist.
     """
     if llm_client is None:
         raise RuntimeError("llm_client is required.")
@@ -129,58 +126,96 @@ async def run(
         raise FileNotFoundError(f"No search results at {search_path}. Run search stage first.")
 
     data = json.loads(search_path.read_text(encoding="utf-8"))
-    print(f"LongMemEval Evaluate | run={run_name} questions={len(data)}")
+
+    jsonl_path = run_dir / "evaluate.jsonl"
+
+    # Load checkpoint
+    completed_ids = load_completed(jsonl_path) if resume else set()
+    if not resume and jsonl_path.exists():
+        jsonl_path.unlink()
+
+    remaining = [item for item in data if item["question_id"] not in completed_ids]
+
+    print(f"LongMemEval Evaluate | run={run_name} questions={len(data)} remaining={len(remaining)}")
+    if completed_ids:
+        print(f"  Resuming: {len(completed_ids)} already completed")
 
     # Evaluate with concurrency control
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def eval_with_semaphore(item: dict) -> tuple[bool, dict]:
+    async def eval_with_semaphore(item: dict) -> None:
         async with semaphore:
+            # Skip items that errored in search stage
             if item.get("error"):
-                return False, item
-            is_correct = await evaluate_single(
-                llm_client,
-                item["question"],
-                item["answer"],
-                item["response"],
-                item.get("question_type", "default"),
-            )
-            return is_correct, item
+                scored = {
+                    "question_id": item["question_id"],
+                    "question_type": item.get("question_type"),
+                    "is_correct": None,
+                    "error": item["error"],
+                    "question": item.get("question", ""),
+                    "gold_answer": item.get("answer", ""),
+                    "response": item.get("response", ""),
+                }
+            else:
+                try:
+                    is_correct = await evaluate_single(
+                        llm_client,
+                        item["question"],
+                        item["answer"],
+                        item["response"],
+                        item.get("question_type", "default"),
+                    )
+                    scored = {
+                        "question_id": item["question_id"],
+                        "question_type": item.get("question_type"),
+                        "is_correct": is_correct,
+                        "question": item["question"],
+                        "gold_answer": item["answer"],
+                        "response": item["response"],
+                    }
+                except Exception as e:
+                    logger.error("Evaluation failed for %s: %s", item["question_id"], e)
+                    scored = {
+                        "question_id": item["question_id"],
+                        "question_type": item.get("question_type"),
+                        "is_correct": None,
+                        "error": f"eval_failed: {e}",
+                        "question": item.get("question", ""),
+                        "gold_answer": item.get("answer", ""),
+                        "response": item.get("response", ""),
+                    }
+            append_jsonl(jsonl_path, scored)
 
-    tasks = [eval_with_semaphore(item) for item in data]
-    results = await asyncio.gather(*tasks)
+    tasks = [eval_with_semaphore(item) for item in remaining]
+    await asyncio.gather(*tasks)
 
-    # Aggregate scores
+    # Load all results (checkpoint + new)
+    all_scored = load_all_results(jsonl_path)
+
+    # Aggregate scores — exclude errored items
     type_stats: dict[str, dict[str, int]] = {}
     total_correct = 0
-    total_count = 0
-    scored_items = []
+    total_scored = 0
+    total_errors = 0
 
-    for is_correct, item in results:
-        qtype = item.get("question_type", "unknown")
+    for scored in all_scored:
+        qtype = scored.get("question_type", "unknown")
         if qtype not in type_stats:
             type_stats[qtype] = {"correct": 0, "total": 0}
 
-        type_stats[qtype]["total"] += 1
-        total_count += 1
+        if scored.get("is_correct") is None:
+            total_errors += 1
+            continue
 
-        if is_correct:
+        type_stats[qtype]["total"] += 1
+        total_scored += 1
+
+        if scored["is_correct"]:
             type_stats[qtype]["correct"] += 1
             total_correct += 1
 
-        scored_items.append(
-            {
-                "question_id": item["question_id"],
-                "question_type": item.get("question_type"),
-                "is_correct": is_correct,
-                "question": item["question"],
-                "gold_answer": item["answer"],
-                "response": item["response"],
-            }
-        )
-
     # Calculate accuracies
-    overall_accuracy = total_correct / total_count if total_count > 0 else 0
+    overall_accuracy = total_correct / total_scored if total_scored > 0 else 0
     accuracy_by_type = {}
     for qtype, stats in sorted(type_stats.items()):
         acc = stats["correct"] / stats["total"] if stats["total"] > 0 else 0
@@ -192,17 +227,21 @@ async def run(
 
     scores = {
         "run_name": run_name,
-        "total_questions": total_count,
+        "total_questions": len(all_scored),
+        "scored_questions": total_scored,
+        "errors": total_errors,
         "correct_answers": total_correct,
         "overall_accuracy": round(overall_accuracy, 4),
         "accuracy_by_type": accuracy_by_type,
-        "evaluation_timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "scored_items": scored_items,
+        "evaluation_timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "scored_items": all_scored,
     }
 
     # Print summary
     print(f"\n{'=' * 50}")
-    print(f"Overall: {total_correct}/{total_count} = {overall_accuracy:.1%}")
+    print(f"Overall: {total_correct}/{total_scored} = {overall_accuracy:.1%}")
+    if total_errors:
+        print(f"Errors (excluded from scoring): {total_errors}")
     print(f"{'=' * 50}")
     for qtype, stats in sorted(accuracy_by_type.items()):
         print(f"  {qtype}: {stats['correct']}/{stats['total']} = {stats['accuracy']:.1%}")
@@ -226,10 +265,11 @@ def main():
     parser = argparse.ArgumentParser(description="LongMemEval Stage 3: Evaluation")
     parser.add_argument("--run-name", default="baseline", help="Name for this run")
     parser.add_argument("--max-concurrent", type=int, default=10, help="Max concurrent LLM calls")
+    parser.add_argument("--no-resume", action="store_true", help="Start fresh, ignore prior checkpoint")
     args = parser.parse_args()
 
     llm_client = _make_llm_client()
-    asyncio.run(run(run_name=args.run_name, llm_client=llm_client, max_concurrent=args.max_concurrent))
+    asyncio.run(run(run_name=args.run_name, llm_client=llm_client, max_concurrent=args.max_concurrent, resume=not args.no_resume))
 
 
 if __name__ == "__main__":

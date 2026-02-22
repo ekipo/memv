@@ -11,12 +11,11 @@ from pathlib import Path
 
 from memv.memory.memory import Memory
 
+from ._checkpoint import RESULTS_DIR, append_jsonl, load_all_results, load_completed
 from .config import get_config
-from .dataset import load_dataset
+from .dataset import LongMemEvalQuestion, load_dataset
 
 logger = logging.getLogger(__name__)
-
-RESULTS_DIR = Path(__file__).parent.parent / "results"
 
 ANSWER_PROMPT = """You are a memory assistant that retrieves accurate information from conversation memories.
 
@@ -40,7 +39,7 @@ Answer:"""
 
 
 async def process_question(
-    question_data,
+    question_data: LongMemEvalQuestion,
     db_dir: Path,
     config_name: str,
     embedding_client,
@@ -111,45 +110,6 @@ async def process_question(
     }
 
 
-def _load_completed(jsonl_path: Path) -> set[str]:
-    """Load completed question IDs from checkpoint JSONL file."""
-    completed = set()
-    if not jsonl_path.exists():
-        return completed
-    for line in jsonl_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-            completed.add(obj["question_id"])
-        except (json.JSONDecodeError, KeyError):
-            continue
-    return completed
-
-
-def _append_jsonl(jsonl_path: Path, result: dict) -> None:
-    """Append a single result as a JSONL line (atomic append)."""
-    with jsonl_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(result, ensure_ascii=False) + "\n")
-
-
-def _load_all_results(jsonl_path: Path) -> list[dict]:
-    """Load all results from checkpoint JSONL file."""
-    results = []
-    if not jsonl_path.exists():
-        return results
-    for line in jsonl_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            results.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return results
-
-
 async def run(
     run_name: str = "baseline",
     config_name: str = "default",
@@ -191,7 +151,7 @@ async def run(
     jsonl_path = run_dir / "search.jsonl"
 
     # Load checkpoint
-    completed_ids = _load_completed(jsonl_path) if resume else set()
+    completed_ids = load_completed(jsonl_path) if resume else set()
     if not resume and jsonl_path.exists():
         jsonl_path.unlink()
 
@@ -208,7 +168,7 @@ async def run(
     completed_count = len(completed_ids)
     total_count = len(dataset)
 
-    async def process_with_guard(question) -> dict | None:
+    async def process_with_guard(question: LongMemEvalQuestion) -> dict | None:
         nonlocal completed_count
         async with semaphore:
             try:
@@ -240,7 +200,7 @@ async def run(
                     "retrieval_time_s": 0,
                 }
 
-            _append_jsonl(jsonl_path, result)
+            append_jsonl(jsonl_path, result)
             completed_count += 1
             error = result.get("error")
             if error:
@@ -256,7 +216,7 @@ async def run(
     await asyncio.gather(*tasks)
 
     # Write compatibility JSON from all JSONL results
-    all_results = _load_all_results(jsonl_path)
+    all_results = load_all_results(jsonl_path)
     output_path = run_dir / "search.json"
     output_path.write_text(json.dumps(all_results, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nResults saved to {output_path}")
