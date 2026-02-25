@@ -129,7 +129,6 @@ async def run(
 
     jsonl_path = run_dir / "evaluate.jsonl"
 
-    # Load checkpoint
     completed_ids = load_completed(jsonl_path) if resume else set()
     if not resume and jsonl_path.exists():
         jsonl_path.unlink()
@@ -140,7 +139,6 @@ async def run(
     if completed_ids:
         print(f"  Resuming: {len(completed_ids)} already completed")
 
-    # Evaluate with concurrency control
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def eval_with_semaphore(item: dict) -> None:
@@ -189,10 +187,8 @@ async def run(
     tasks = [eval_with_semaphore(item) for item in remaining]
     await asyncio.gather(*tasks)
 
-    # Load all results (checkpoint + new)
     all_scored = load_all_results(jsonl_path)
 
-    # Aggregate scores — exclude errored items
     type_stats: dict[str, dict[str, int]] = {}
     total_correct = 0
     total_scored = 0
@@ -214,7 +210,6 @@ async def run(
             type_stats[qtype]["correct"] += 1
             total_correct += 1
 
-    # Calculate accuracies
     overall_accuracy = total_correct / total_scored if total_scored > 0 else 0
     accuracy_by_type = {}
     for qtype, stats in sorted(type_stats.items()):
@@ -237,7 +232,6 @@ async def run(
         "scored_items": all_scored,
     }
 
-    # Print summary
     print(f"\n{'=' * 50}")
     print(f"Overall: {total_correct}/{total_scored} = {overall_accuracy:.1%}")
     if total_errors:
@@ -247,7 +241,6 @@ async def run(
         print(f"  {qtype}: {stats['correct']}/{stats['total']} = {stats['accuracy']:.1%}")
     print(f"{'=' * 50}")
 
-    # Save
     output_path = run_dir / "scores.json"
     output_path.write_text(json.dumps(scores, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nScores saved to {output_path}")

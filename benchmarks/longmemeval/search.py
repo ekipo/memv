@@ -78,7 +78,6 @@ async def process_question(
         result = await memory.retrieve(question_data.question, user_id=user_id, top_k=top_k)
         retrieval_time = time.monotonic() - start_time
 
-        # Format memories for the answer prompt
         memory_lines = []
         for k in result.retrieved_knowledge:
             validity = ""
@@ -90,7 +89,6 @@ async def process_question(
 
         memories_text = "\n".join(memory_lines) if memory_lines else "No relevant memories found."
 
-        # Generate answer
         prompt = ANSWER_PROMPT.format(
             memories=memories_text,
             question_date=question_data.question_date,
@@ -150,7 +148,6 @@ async def run(
 
     jsonl_path = run_dir / "search.jsonl"
 
-    # Load checkpoint
     completed_ids = load_completed(jsonl_path) if resume else set()
     if not resume and jsonl_path.exists():
         jsonl_path.unlink()

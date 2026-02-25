@@ -57,7 +57,6 @@ async def process_question(
     total_messages = 0
 
     async with memory:
-        # Ingest each session
         for session, date_str in zip(question_data.haystack_sessions, question_data.haystack_dates, strict=True):
             timestamp = parse_longmemeval_date(date_str)
             for turn in session:
@@ -71,7 +70,6 @@ async def process_question(
                 await memory.add_message(msg)
                 total_messages += 1
 
-        # Extract knowledge
         knowledge_count = await memory.process(user_id)
 
     elapsed = time.monotonic() - start_time
@@ -123,7 +121,6 @@ async def run(
 
     jsonl_path = run_dir / "add.jsonl"
 
-    # Load checkpoint
     completed_ids = load_completed(jsonl_path) if resume else set()
     if not resume and jsonl_path.exists():
         jsonl_path.unlink()
@@ -194,7 +191,6 @@ async def run(
 
 
 def _make_clients():
-    """Create default OpenAI-based clients for CLI usage."""
     from memv.embeddings.openai import OpenAIEmbedAdapter
     from memv.llm.pydantic_ai import PydanticAIAdapter
 
