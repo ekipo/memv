@@ -72,5 +72,5 @@ class MemoryConfig:
             raise ValueError(f"embedding_cache_size must be >= 1, got {self.embedding_cache_size}")
         if self.embedding_cache_ttl_seconds <= 0:
             raise ValueError(f"embedding_cache_ttl_seconds must be > 0, got {self.embedding_cache_ttl_seconds}")
-        if self.default_min_score is not None and self.default_min_score < 0.0:
-            raise ValueError(f"default_min_score must be >= 0.0, got {self.default_min_score}")
+        if self.default_min_score is not None and (self.default_min_score < 0.0 or self.default_min_score > 1.0):
+            raise ValueError(f"default_min_score must be >= 0.0 and <= 1.0, got {self.default_min_score}")

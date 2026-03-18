@@ -68,8 +68,8 @@ class Retriever:
             raise ValueError(f"top_k must be >= 1, got {top_k}")
         if not (0.0 <= vector_weight <= 1.0):
             raise ValueError(f"vector_weight must be between 0.0 and 1.0, got {vector_weight}")
-        if min_score is not None and min_score < 0.0:
-            raise ValueError(f"min_score must be >= 0.0, got {min_score}")
+        if min_score is not None and (min_score < 0.0 or min_score > 1.0):
+            raise ValueError(f"min_score must be >= 0.0 and <= 1.0, got {min_score}")
 
         if self.embedder is None:
             raise RuntimeError("Embedding client required for retrieval")
