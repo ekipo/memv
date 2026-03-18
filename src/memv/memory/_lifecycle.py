@@ -52,6 +52,8 @@ class LifecycleManager:
         enable_embedding_cache: bool | None = None,
         embedding_cache_size: int | None = None,
         embedding_cache_ttl_seconds: int | None = None,
+        # Retrieval config
+        default_min_score: float | None = None,
     ):
         # Use config or defaults
         cfg = config or MemoryConfig()
@@ -106,6 +108,9 @@ class LifecycleManager:
             embedding_cache_ttl_seconds if embedding_cache_ttl_seconds is not None else cfg.embedding_cache_ttl_seconds
         )
 
+        # Retrieval config
+        self.default_min_score = default_min_score if default_min_score is not None else cfg.default_min_score
+
         # Ensure parent directory exists
         db_dir = Path(self.db_path).parent
         if db_dir != Path("."):
@@ -155,6 +160,7 @@ class LifecycleManager:
             text_index=self.text_index,
             embedding_client=self.embedder,
             embedding_cache=embedding_cache,
+            default_min_score=self.default_min_score,
         )
 
         if self.llm is not None:

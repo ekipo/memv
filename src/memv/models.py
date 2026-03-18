@@ -131,6 +131,9 @@ class RetrievalResult(BaseModel):
     """Results from memory retrieval."""
 
     retrieved_knowledge: list[SemanticKnowledge] = Field(default_factory=list, description="Retrieved semantic knowledge entries.")
+    scores: list[float] = Field(
+        default_factory=list, description="Normalized relevance scores [0, 1] aligned with retrieved_knowledge."
+    )
 
     def to_prompt(self) -> str:
         """Format retrieval results for LLM context injection."""

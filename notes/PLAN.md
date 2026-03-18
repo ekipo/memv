@@ -1,9 +1,9 @@
 # Next Steps Plan
-Last updated: 2026-03-13
+Last updated: 2026-03-18
 
 **Mission:** Make memv the best "remember what users said" library. Solid semantic memory first, then procedural/agent memory as the differentiator.
 
-**Current state:** v0.1.0 shipped (alpha, Feb 2026). Core pipeline works end-to-end. 215 tests for ~4.8K LOC. Predict-calibrate extraction, write-time temporal normalization, bi-temporal validity, episode segmentation — no single competitor has all four. LongMemEval benchmark harness built, full run pending. user_id denormalization and knowledge CRUD complete (PR #16). Contradiction handling with index-based supersedes implemented.
+**Current state:** v0.1.0 shipped (alpha, Feb 2026). Core pipeline works end-to-end. 233 tests for ~4.8K LOC. Predict-calibrate extraction, write-time temporal normalization, bi-temporal validity, episode segmentation — no single competitor has all four. LongMemEval benchmark harness built, full run pending. user_id denormalization, knowledge CRUD, contradiction handling, direct injection, and score threshold filtering all complete.
 
 **What's unique about memv:**
 - Predict-calibrate extraction (only Nemori shares this — importance from prediction error)
@@ -13,7 +13,7 @@ Last updated: 2026-03-13
 
 **What's table-stakes that memv is still missing:**
 - ~~Knowledge CRUD through public API~~ (done — PR #16)
-- Score/relevance threshold on retrieval
+- ~~Score/relevance threshold on retrieval~~ (done — PR #19)
 - ~~Direct knowledge injection (bootstrapping without fake conversations)~~ (done — PR #18)
 - A second storage backend (Mem0 has 6+, most have 2+)
 
@@ -197,12 +197,12 @@ Bootstrapping requmires fake conversations without this. Every competitor with a
 `retrieve()` always returns `top_k` results regardless of relevance. Low-quality results waste context tokens.
 
 **Retrieval** (`src/memv/retrieval/retriever.py`):
-- [ ] Add `min_score: float | None = None` to `retrieve()`
-- [ ] Post-RRF: filter results below threshold
-- [ ] `allow_empty: bool = False` — always return at least 1 result unless explicitly allowed
+- [x] Add `min_score: float | None = None` to `retrieve()`
+- [x] Post-RRF: filter results below threshold
+- [x] `allow_empty: bool = False` — always return at least 1 result unless explicitly allowed
 
 **Config** (`src/memv/config.py`):
-- [ ] `default_min_score: float | None = None` — global default, overridable per-call
+- [x] `default_min_score: float | None = None` — global default, overridable per-call
 
 **API**: Pass `min_score` through `Memory.retrieve()` → `Retriever.retrieve()`
 

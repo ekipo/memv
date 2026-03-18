@@ -192,3 +192,60 @@ async def test_to_prompt_format(retriever_env):
 
     assert "## Relevant Context" in prompt
     assert "- User likes Python" in prompt
+
+
+async def test_scores_normalized(retriever_env):
+    env = retriever_env
+    await _seed_knowledge(env["ks"], env["vi"], env["ti"], env["embedder"], "User likes Python")
+    await _seed_knowledge(env["ks"], env["vi"], env["ti"], env["embedder"], "User enjoys cooking")
+
+    result = await env["retriever"].retrieve("User likes Python", user_id="user1")
+
+    assert len(result.scores) == len(result.retrieved_knowledge)
+    assert all(0.0 < s <= 1.0 for s in result.scores)
+
+
+async def test_min_score_filtering(retriever_env):
+    env = retriever_env
+    await _seed_knowledge(env["ks"], env["vi"], env["ti"], env["embedder"], "User likes Python")
+    await _seed_knowledge(env["ks"], env["vi"], env["ti"], env["embedder"], "User enjoys cooking")
+
+    result_all = await env["retriever"].retrieve("User likes Python", user_id="user1", min_score=None)
+    assert len(result_all.retrieved_knowledge) == 2
+
+    # impossible thresholds + allow_empty
+    result_best = await env["retriever"].retrieve("User likes Python", user_id="user1", min_score=1.01, allow_empty=False)
+    assert len(result_best.retrieved_knowledge) == 1
+
+    result_empty = await env["retriever"].retrieve("User likes Python", user_id="user1", min_score=1.01, allow_empty=True)
+    assert len(result_empty.retrieved_knowledge) == 0
+
+
+async def test_default_min_score(retriever_env):
+    env = retriever_env
+    await _seed_knowledge(env["ks"], env["vi"], env["ti"], env["embedder"], "User likes Python")
+    await _seed_knowledge(env["ks"], env["vi"], env["ti"], env["embedder"], "User enjoys cooking")
+
+    strict_retriever = Retriever(
+        knowledge_store=env["ks"],
+        vector_index=env["vi"],
+        text_index=env["ti"],
+        embedding_client=env["embedder"],
+        default_min_score=0.99,
+    )
+
+    result_default = await strict_retriever.retrieve("User likes Python", user_id="user1")
+    assert len(result_default.retrieved_knowledge) <= 1
+
+    result_override = await strict_retriever.retrieve("User likes Python", user_id="user1", min_score=0.0)
+    assert len(result_override.retrieved_knowledge) == 2
+
+
+async def test_parameter_validation(retriever_env):
+    r = retriever_env["retriever"]
+    with pytest.raises(ValueError, match="top_k"):
+        await r.retrieve("test", user_id="user1", top_k=0)
+    with pytest.raises(ValueError, match="vector_weight"):
+        await r.retrieve("test", user_id="user1", vector_weight=1.5)
+    with pytest.raises(ValueError, match="min_score"):
+        await r.retrieve("test", user_id="user1", min_score=-0.5)

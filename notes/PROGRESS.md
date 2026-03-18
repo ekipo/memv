@@ -233,3 +233,10 @@ Major plan restructure — cut scope from 35 sections across 5 releases down to 
 - Changed: `clear_user` in `_api.py` and `dashboard/app.py` simplified — `KnowledgeStore.clear_user(user_id)` added, no longer fetches episodes first
 - Added: `VectorIndex.has_near_duplicate()` helper — dedup logic shared between Pipeline and injection API
 - Updated: test count 215 → 248 (5 e2e injection tests, 4 vector index tests)
+
+## 2026-03-18
+
+- Checked off: all 4 items under "5. Score Threshold Filtering" — `min_score`/`allow_empty` on `retrieve()`, `default_min_score` on `MemoryConfig`, `__post_init__` validation added to config (PR #19)
+- Updated: test count 248 → 233 (branch reflects actual collected count; new tests: `test_scores_normalized`, `test_min_score_filtering`, `test_default_min_score`, `test_parameter_validation`)
+- Updated: "table-stakes missing" list — struck through score threshold (done)
+- Updated: current state header — all v0.1.1 non-benchmark items complete

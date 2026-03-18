@@ -79,6 +79,8 @@ async def retrieve(
     user_id: str,
     top_k: int = 10,
     vector_weight: float = 0.5,
+    min_score: float | None = None,
+    allow_empty: bool = False,
     at_time: datetime | None = None,
     include_expired: bool = False,
 ) -> RetrievalResult:
@@ -91,11 +93,13 @@ async def retrieve(
         user_id: Filter results to this user only (required for privacy)
         top_k: Number of results to return
         vector_weight: Balance between vector (1.0) and text (0.0) search
+        min_score: Minimum normalized relevance score (0-1): None disables filtering or uses instance default_min_score
+        allow_empty: If True, return no results when all are below threshold; otherwise (default) return at least one
         at_time: If provided, filter knowledge by validity at this event time
         include_expired: If True, include superseded (expired) records
 
     Returns:
-        RetrievalResult containing knowledge statements.
+        RetrievalResult containing knowledge statements with scores.
     """
     lifecycle.ensure_open()
     if lifecycle.retriever is None:
@@ -106,6 +110,8 @@ async def retrieve(
         user_id=user_id,
         top_k=top_k,
         vector_weight=vector_weight,
+        min_score=min_score,
+        allow_empty=allow_empty,
         at_time=at_time,
         include_expired=include_expired,
     )

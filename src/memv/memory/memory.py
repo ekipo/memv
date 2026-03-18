@@ -95,6 +95,8 @@ class Memory:
         enable_embedding_cache: bool | None = None,
         embedding_cache_size: int | None = None,
         embedding_cache_ttl_seconds: int | None = None,
+        # Retrieval config
+        default_min_score: float | None = None,
     ):
         self._lifecycle = LifecycleManager(
             db_path=db_path,
@@ -116,6 +118,7 @@ class Memory:
             enable_embedding_cache=enable_embedding_cache,
             embedding_cache_size=embedding_cache_size,
             embedding_cache_ttl_seconds=embedding_cache_ttl_seconds,
+            default_min_score=default_min_score,
         )
         self._pipeline = Pipeline(self._lifecycle)
         self._task_manager = TaskManager(self._lifecycle, self._pipeline)
@@ -192,6 +195,8 @@ class Memory:
         user_id: str,
         top_k: int = 10,
         vector_weight: float = 0.5,
+        min_score: float | None = None,
+        allow_empty: bool = False,
         at_time: datetime | None = None,
         include_expired: bool = False,
     ) -> RetrievalResult:
@@ -203,13 +208,15 @@ class Memory:
             user_id: Filter results to this user only (required for privacy)
             top_k: Number of results to return
             vector_weight: Balance between vector (1.0) and text (0.0) search
+            min_score: Minimum normalized relevance score (0-1): None disables filtering or uses instance default_min_score
+            allow_empty: If True, return no results when all are below threshold; otherwise (default) return at least one
             at_time: If provided, filter knowledge by validity at this event time.
                      Returns only knowledge that was valid at that point in time.
             include_expired: If True, include superseded (expired) records.
                             Useful for viewing full history of a fact.
 
         Returns:
-            RetrievalResult containing knowledge statements.
+            RetrievalResult containing knowledge statements with scores.
             Use result.to_prompt() to get formatted context for LLM.
         """
         return await retrieve(
@@ -218,6 +225,8 @@ class Memory:
             user_id,
             top_k,
             vector_weight,
+            min_score,
+            allow_empty,
             at_time,
             include_expired,
         )
