@@ -32,12 +32,14 @@ postgres = [
     "asyncpg>=0.30.0",
     "pgvector>=0.3.6",
 ]
+mcp = ["mcp>=1.0.0"]
 voyage = ["voyageai>=0.3.0"]
 cohere = ["cohere>=5.0.0"]
 local = ["fastembed>=0.6.0"]
 
 [project.scripts]
 memv = "memv:main"
+memv-mcp = "memv.mcp.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/vstorm-co/memv"
@@ -59,6 +61,7 @@ dev = [
     "cohere>=5.0.0",
     "fastembed>=0.6.0",
     "ipython>=9.9.0",
+    "mcp>=1.0.0",
     "pgvector>=0.3.6",
     "voyageai>=0.3.0",
     "pre-commit>=4.5.1",

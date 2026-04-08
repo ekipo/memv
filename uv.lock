@@ -1949,6 +1949,9 @@ cohere = [
 local = [
     { name = "fastembed" },
 ]
+mcp = [
+    { name = "mcp" },
+]
 postgres = [
     { name = "asyncpg" },
     { name = "pgvector" },
@@ -1963,6 +1966,7 @@ dev = [
     { name = "cohere" },
     { name = "fastembed" },
     { name = "ipython" },
+    { name = "mcp" },
     { name = "pgvector" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -1994,6 +1998,7 @@ requires-dist = [
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.30.0" },
     { name = "cohere", marker = "extra == 'cohere'", specifier = ">=5.0.0" },
     { name = "fastembed", marker = "extra == 'local'", specifier = ">=0.6.0" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
     { name = "openai", specifier = ">=2.15.0" },
     { name = "pgvector", marker = "extra == 'postgres'", specifier = ">=0.3.6" },
     { name = "pydantic", specifier = ">=2.12.5" },
@@ -2003,7 +2008,7 @@ requires-dist = [
     { name = "textual", specifier = ">=3.5.0" },
     { name = "voyageai", marker = "extra == 'voyage'", specifier = ">=0.3.0" },
 ]
-provides-extras = ["postgres", "voyage", "cohere", "local"]
+provides-extras = ["postgres", "mcp", "voyage", "cohere", "local"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2011,6 +2016,7 @@ dev = [
     { name = "cohere", specifier = ">=5.0.0" },
     { name = "fastembed", specifier = ">=0.6.0" },
     { name = "ipython", specifier = ">=9.9.0" },
+    { name = "mcp", specifier = ">=1.0.0" },
     { name = "pgvector", specifier = ">=0.3.6" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=9.0.2" },
